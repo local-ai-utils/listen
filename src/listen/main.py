@@ -1,18 +1,9 @@
-import os
-import yaml
 import pyaudio
 import wave
 import tempfile
-from openai import OpenAI
 import tkinter as tk
 import threading
-
-config_path = os.path.expanduser('~/.config/ai-utils.yaml')
-
-with open(config_path, 'r') as file:
-    config = yaml.safe_load(file)
-
-client = OpenAI(api_key=config['keys']['openai'])
+from local_ai_utils_core import LocalAIUtilsCore
 
 # PyAudio configuration
 FORMAT = pyaudio.paInt16  # Audio format (16-bit int)
@@ -20,7 +11,9 @@ CHANNELS = 1              # Number of audio channels (mono)
 RATE = 16000              # Sampling rate (16 kHz)
 CHUNK = 1024              # Buffer size
 
-def listen_and_transcribe():
+def listen_and_transcribe(core):
+    client = core.clients.open_ai()
+
     # Initialize PyAudio
     audio = pyaudio.PyAudio()
 
@@ -69,14 +62,14 @@ def listen_and_transcribe():
                 wf.writeframes(b''.join(audio_data))
 
             # Transcribe the audio file
-            transcribe(tmp_file)
+            transcribe(client, tmp_file)
 
     # Start recording in a separate thread
     threading.Thread(target=record_audio).start()
 
     root.mainloop()
 
-def transcribe(file):
+def transcribe(client, file):
     try:
         with open(file.name, 'rb') as audio_file:
             transcription = client.audio.transcriptions.create(
@@ -89,7 +82,8 @@ def transcribe(file):
 
 # Call the new function to start recording and show GUI
 def main():
-    listen_and_transcribe()
+    core = LocalAIUtilsCore()
+    listen_and_transcribe(core)
 
 if __name__ == "__main__":
     main()
