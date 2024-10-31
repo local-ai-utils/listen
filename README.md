@@ -1,6 +1,8 @@
 # Local AI Utils - Listen
 A plugin for [local-ai-utils](https://github.com/local-ai-utils/core), adding the record audio via the microphone and get a text transcription. Currently only [OpenAI's TTS](https://platform.openai.com/docs/guides/text-to-speech/overview) is supported.
 
+![Listen Demo](/docs/listen.gif)
+
 ## Installation
 Currently installation is only supported via the GitHub remote.
 ```
