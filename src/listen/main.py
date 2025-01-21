@@ -1,9 +1,8 @@
+import tkinter as tk
+import threading
 import pyaudio
 import wave
 import tempfile
-import tkinter as tk
-import threading
-from local_ai_utils_core import LocalAIUtilsCore
 
 # PyAudio configuration
 FORMAT = pyaudio.paInt16  # Audio format (16-bit int)
@@ -11,41 +10,49 @@ CHANNELS = 1              # Number of audio channels (mono)
 RATE = 16000              # Sampling rate (16 kHz)
 CHUNK = 1024              # Buffer size
 
-def listen_and_transcribe(core):
-    client = core.clients.open_ai()
-
-    # Initialize PyAudio
-    audio = pyaudio.PyAudio()
-
-    # Open audio stream
-    stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
-                        input=True, frames_per_buffer=CHUNK)
-
-    audio_data = []
-    listening = True
+def kickoff_gui(stop_event):
+    root = tk.Tk()
 
     def stop_listening():
-        nonlocal listening
-        listening = False
+        stop_event.set()
+        root.destroy()
 
-    # Create GUI window
-    root = tk.Tk()
     root.title("Recording")
     root.geometry("300x100")
-
-    label = tk.Label(root, text="Press Enter to stop recording...")
-    label.pack(pady=20)
-
+    root.focus_force()
+    root.lift()
+    root.attributes("-topmost", True)
     root.bind('<Return>', lambda event: stop_listening())
 
-    def record_audio():
-        nonlocal audio_data
-        while listening:
+    label = tk.Label(root, text="Enter to stop recording...")
+    label.pack(pady=20)
+
+    root.mainloop()
+
+class RecordingThread(threading.Thread):
+    def __init__(self, stop_event):
+        super().__init__()
+        self.stop_event = stop_event
+        self.result = None
+
+    def run(self):
+        from local_ai_utils_core import LocalAIUtilsCore
+
+        core = LocalAIUtilsCore()
+        client = core.clients.open_ai()
+
+        # Initialize PyAudio 
+        audio = pyaudio.PyAudio()
+
+        # Open audio stream
+        stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
+                            input=True, frames_per_buffer=CHUNK)
+
+        audio_data = []
+
+        while not self.stop_event.is_set():
             data = stream.read(CHUNK, exception_on_overflow=False)
             audio_data.append(data)
-
-        # Close the recording window
-        root.quit()
 
         # Stop the stream
         stream.stop_stream()
@@ -62,12 +69,7 @@ def listen_and_transcribe(core):
                 wf.writeframes(b''.join(audio_data))
 
             # Transcribe the audio file
-            transcribe(client, tmp_file)
-
-    # Start recording in a separate thread
-    threading.Thread(target=record_audio).start()
-
-    root.mainloop()
+            self.result = transcribe(client, tmp_file)
 
 def transcribe(client, file):
     try:
@@ -76,14 +78,22 @@ def transcribe(client, file):
                 model="whisper-1",
                 file=audio_file
             )
-            print(transcription.text)
+            
+            return transcription.text
     except Exception as e:
         print(f"Error during transcription: {e}")
 
 # Call the new function to start recording and show GUI
 def main():
-    core = LocalAIUtilsCore()
-    listen_and_transcribe(core)
+    # Create an event to coordinate between threads
+    stop_event = threading.Event()
+    recording_thread = RecordingThread(stop_event)
+    recording_thread.start()
+    kickoff_gui(stop_event)
+
+    recording_thread.join()
+    print("thread result: ", recording_thread.result)
+    
 
 if __name__ == "__main__":
     main()
