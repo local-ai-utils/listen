@@ -10,23 +10,16 @@ CHANNELS = 1              # Number of audio channels (mono)
 RATE = 16000              # Sampling rate (16 kHz)
 CHUNK = 1024              # Buffer size
 
-def kickoff_gui(stop_event, recording_thread):
+def kickoff_gui(stop_event):
     root = tk.Tk()
-    process_thread = None
 
     def stop_listening(event=None):
-        nonlocal process_thread
         stop_event.set()
-
-        process_thread = threading.Thread(target=process_audio, args=(recording_thread,))
-        process_thread.start()
 
         root.quit()
         root.destroy()
 
-        print('tell it to quit')
-        root.after(0, process_thread.join)
-        print('after tell it to quit')
+        root.update_idletasks()
 
     # Center the window on screen
     window_width = 500
@@ -125,12 +118,11 @@ def transcribe(file):
         print(f"Error during transcription: {e}")
 
 def process_audio(recording_thread):
-    print('start processing audio')
     recording_thread.join()
     audio = recording_thread.result
     tempfile = save_audio(audio)
     transcription = transcribe(tempfile)
-    print(transcription)
+    return transcription
 
 # Call the new function to start recording and show GUI
 def main():
@@ -138,7 +130,9 @@ def main():
     stop_event = threading.Event()
     recording_thread = RecordingThread(stop_event)
     recording_thread.start()
-    kickoff_gui(stop_event, recording_thread)
+
+    kickoff_gui(stop_event)
+    print(process_audio(recording_thread))
     
 
 if __name__ == "__main__":
